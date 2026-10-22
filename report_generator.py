@@ -5,7 +5,7 @@ Generates professional PDF Assay Certificates and structured CSV export reports.
 
 import os
 from datetime import datetime
-from typing import List, Dict
+from typing import List, Dict, Any
 import pandas as pd
 
 from reportlab.lib import colors
