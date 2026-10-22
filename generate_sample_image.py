@@ -134,13 +134,14 @@ def generate_sample_smartphone_capture(
 
     # Variety-specific dimension baselines
     variety_lengths = {
+        "Long Grain Rice (Default)": 6.6,
         "Sona Masoori": 5.2,
         "Basmati": 7.5,
         "Swarna": 5.0,
         "IR64": 6.0,
-        "Auto-Detect": 5.5,
+        "Auto-Detect": 6.6,
     }
-    base_len_mm = variety_lengths.get(variety, 5.2)
+    base_len_mm = variety_lengths.get(variety, 6.6)
     broken_cutoff = base_len_mm * 0.75
 
     placed_positions = []

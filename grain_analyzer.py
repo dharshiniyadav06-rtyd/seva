@@ -47,11 +47,12 @@ class RiceGrainAnalyzer:
 
     # Variety-Aware Baselines (in millimeters)
     VARIETY_BASELINES = {
+        "Long Grain Rice (Default)": {"full_length_mm": 6.6, "name_ta": "நீண்ட தானிய அரிசி (இயல்பு)"},
         "Sona Masoori": {"full_length_mm": 5.2, "name_ta": "சோனா மசூரி"},
         "Basmati": {"full_length_mm": 7.5, "name_ta": "பாசுமதி"},
         "Swarna": {"full_length_mm": 5.0, "name_ta": "ஸ்வர்ணா"},
         "IR64": {"full_length_mm": 6.0, "name_ta": "ஐஆர்64"},
-        "Auto-Detect": {"full_length_mm": 6.0, "name_ta": "தானியங்கி கண்டறிதல்"},
+        "Auto-Detect": {"full_length_mm": 6.6, "name_ta": "தானியங்கி கண்டறிதல்"},
     }
 
     # BGR colors for visualization:
@@ -65,19 +66,19 @@ class RiceGrainAnalyzer:
 
     def __init__(
         self,
-        variety: str = "Sona Masoori",
+        variety: str = "Long Grain Rice (Default)",
         length_threshold_ratio: float = 0.75,
         discolour_threshold: float = 38.0,
         chalky_threshold: float = 0.22,
     ):
         """
         Args:
-            variety: Name from VARIETY_BASELINES ("Sona Masoori", "Basmati", "Swarna", "IR64", "Auto-Detect")
+            variety: Name from VARIETY_BASELINES ("Long Grain Rice (Default)", "Sona Masoori", "Basmati", "Swarna", "IR64", "Auto-Detect")
             length_threshold_ratio: Minimum ratio of expected length to be deemed 'Whole' (default: 0.75 = 75%)
             discolour_threshold: Color deviation / saturation cutoff for discolouration
             chalky_threshold: Fractional area ratio of opaque white chalkiness inside kernel
         """
-        self.variety = variety if variety in self.VARIETY_BASELINES else "Sona Masoori"
+        self.variety = variety if variety in self.VARIETY_BASELINES else "Long Grain Rice (Default)"
         self.full_length_mm = self.VARIETY_BASELINES[self.variety]["full_length_mm"]
         self.length_threshold_ratio = length_threshold_ratio
         self.broken_cutoff_length_mm = self.full_length_mm * self.length_threshold_ratio
