@@ -1,10 +1,8 @@
-# Farmgate AI Dependencies (Python 3.10+)
-# Offline storage: sqlite3 (Python Standard Library)
-opencv-python>=4.8.0
-numpy>=1.24.0
+# Farmgate AI Dependencies
+opencv-python-headless==4.10.0.84
+numpy<2
 matplotlib>=3.7.0
 pillow>=9.5.0
 streamlit>=1.30.0
 pandas>=2.0.0
 reportlab>=4.0.0
-
