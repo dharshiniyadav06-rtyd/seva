@@ -13,6 +13,7 @@ Features:
 import os
 import io
 import time
+from datetime import datetime
 import re
 from typing import Dict, Any, Optional
 import numpy as np
@@ -27,7 +28,12 @@ from calibration_engine import GrainImageCalibrator
 from grain_analyzer import RiceGrainAnalyzer, GrainFeature
 from generate_sheet import generate_calibration_sheet
 from generate_sample_image import generate_sample_smartphone_capture
-from report_generator import export_grains_to_csv, generate_pdf_report
+from report_generator import (
+    export_grains_to_csv,
+    generate_pdf_report,
+    generate_html_report,
+    MANDATORY_DISCLAIMER,
+)
 import database as db
 
 
@@ -621,6 +627,78 @@ def render_metric_cards(stats: Dict[str, Any], analyzer: RiceGrainAnalyzer):
         )
 
 
+def render_onscreen_summary_card(stats: Dict[str, Any], quality_status: str, sample_id: str, timestamp_str: str):
+    """
+    Feature 5: On-screen summary report card displaying:
+    Sample ID, timestamp, total grains, whole/broken/discoloured/chalky counts and %,
+    assigned AGMARK grade with rationale, capture quality status (passed / warning / failed).
+    """
+    status_lower = quality_status.lower()
+    if "pass" in status_lower:
+        status_bg = "#dcfce7"
+        status_fg = "#166534"
+        icon = "✅"
+    elif "warn" in status_lower:
+        status_bg = "#fef3c7"
+        status_fg = "#92400e"
+        icon = "⚠️"
+    else:
+        status_bg = "#fee2e2"
+        status_fg = "#991b1b"
+        icon = "❌"
+
+    st.markdown(
+        f"""
+        <div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 18px 24px; margin: 12px 0 16px 0; box-shadow: 0 2px 5px rgba(0,0,0,0.04);">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 12px; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
+                <div>
+                    <span style="font-size: 16px; font-weight: 700; color: #0f172a;">📋 Assay Summary Report Card</span>
+                    <span style="margin-left: 10px; font-size: 13px; color: #64748b; font-family: monospace;">Sample ID: <strong>{sample_id}</strong></span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <span style="font-size: 12px; color: #64748b;">🕒 {timestamp_str}</span>
+                    <span style="background-color: {status_bg}; color: {status_fg}; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 9999px; text-transform: uppercase;">
+                        {icon} Capture Quality: {quality_status}
+                    </span>
+                </div>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; text-align: center;">
+                <div style="background: #f8fafc; padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                    <div style="font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 600;">Total Assayed</div>
+                    <div style="font-size: 18px; font-weight: 800; color: #0f172a; margin-top: 2px;">{stats['total_grains']}</div>
+                    <div style="font-size: 11px; color: #64748b;">Kernels</div>
+                </div>
+                <div style="background: #f0fdf4; padding: 10px; border-radius: 8px; border: 1px solid #bbf7d0;">
+                    <div style="font-size: 11px; color: #166534; text-transform: uppercase; font-weight: 600;">Whole Grains</div>
+                    <div style="font-size: 18px; font-weight: 800; color: #15803d; margin-top: 2px;">{stats['whole_count']} <span style="font-size: 13px;">({stats['whole_pct']}%)</span></div>
+                    <div style="font-size: 11px; color: #166534;">Head Rice</div>
+                </div>
+                <div style="background: #fef2f2; padding: 10px; border-radius: 8px; border: 1px solid #fecaca;">
+                    <div style="font-size: 11px; color: #991b1b; text-transform: uppercase; font-weight: 600;">Broken Grains</div>
+                    <div style="font-size: 18px; font-weight: 800; color: #dc2626; margin-top: 2px;">{stats['broken_count']} <span style="font-size: 13px;">({stats['broken_pct']}%)</span></div>
+                    <div style="font-size: 11px; color: #991b1b;">Fragmented</div>
+                </div>
+                <div style="background: #fffbeb; padding: 10px; border-radius: 8px; border: 1px solid #fde68a;">
+                    <div style="font-size: 11px; color: #92400e; text-transform: uppercase; font-weight: 600;">Discoloured</div>
+                    <div style="font-size: 18px; font-weight: 800; color: #d97706; margin-top: 2px;">{stats['discoloured_count']} <span style="font-size: 13px;">({stats['discoloured_pct']}%)</span></div>
+                    <div style="font-size: 11px; color: #92400e;">Spotted / Stained</div>
+                </div>
+                <div style="background: #eff6ff; padding: 10px; border-radius: 8px; border: 1px solid #bfdbfe;">
+                    <div style="font-size: 11px; color: #1e40af; text-transform: uppercase; font-weight: 600;">Chalky Grains</div>
+                    <div style="font-size: 18px; font-weight: 800; color: #2563eb; margin-top: 2px;">{stats['chalky_count']} <span style="font-size: 13px;">({stats['chalky_pct']}%)</span></div>
+                    <div style="font-size: 11px; color: #1e40af;">Opaque Kernels</div>
+                </div>
+            </div>
+            <div style="margin-top: 12px; padding: 8px 12px; background: #f8fafc; border-radius: 6px; font-size: 12px; color: #475569; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
+                <span><strong>Assigned Grade:</strong> <span style="color: #0f172a; font-weight: 700;">{stats['agmark_grade']}</span> &mdash; <em>{stats.get('grade_rationale', '')}</em></span>
+                <span style="font-size: 11px; color: #64748b;">Grain Variety: <strong>{stats['variety']}</strong></span>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def render_calibration_sheet_tab():
     """Renders the Printable Calibration Sheet generator and instructions."""
     st.markdown(f"### {get_txt('sheet_title')}")
@@ -702,20 +780,31 @@ def render_standards_tab():
 
 
 def render_mandi_tab():
-    """Renders the Mandi Feedback Loop and MAE Tracking."""
-    st.markdown(f"### {get_txt('mandi_header')}")
-    st.write(get_txt("mandi_desc"))
+    """
+    Feature 6: Renders the Mandi Feedback Loop and MAE Tracking.
+    Stores and compares app-estimated broken % against actual broken %
+    entered by user/trader, computes MAE across saved samples, and offers CSV export.
+    """
+    st.markdown("### 🌾 Mandi & Ground-Truth Feedback Loop")
+    st.write(
+        "Enter ground-truth broken grain percentages from manual counts or Mandi trader assessments "
+        "to validate accuracy and track real-time Mean Absolute Error (MAE)."
+    )
 
+    db.seed_sample_history_if_empty()
     mae_info = db.calculate_feedback_mae()
+    comp_df = db.get_feedback_comparison_df()
 
     col_m1, col_m2, col_m3 = st.columns(3)
     with col_m1:
+        mae_val = mae_info["mae"]
+        mae_color = "#10b981" if mae_val <= 2.0 else ("#0284c7" if mae_val <= 4.0 else "#f59e0b")
         st.markdown(
             f"""
             <div class="metric-card-box">
-                <div class="metric-card-header">{get_txt('current_mae')}</div>
-                <div class="metric-card-val" style="color: #0284c7;">±{mae_info['mae']}%</div>
-                <div class="metric-card-sub">{get_txt('mae_desc')}</div>
+                <div class="metric-card-header">Mean Absolute Error (MAE)</div>
+                <div class="metric-card-val" style="color: {mae_color};">±{mae_val:.2f}%</div>
+                <div class="metric-card-sub">App vs Ground-Truth Broken Deviation</div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -724,20 +813,22 @@ def render_mandi_tab():
         st.markdown(
             f"""
             <div class="metric-card-box">
-                <div class="metric-card-header">{get_txt('trader_price_avg')}</div>
-                <div class="metric-card-val" style="color: #059669;">₹{mae_info['mean_trader_price']:.0f}</div>
-                <div class="metric-card-sub">Per Quintal (₹/Qtl)</div>
+                <div class="metric-card-header">Evaluated Samples</div>
+                <div class="metric-card-val" style="color: #0f172a;">{mae_info['sample_count']}</div>
+                <div class="metric-card-sub">Ground-Truth Calibrated Lots</div>
             </div>
             """,
             unsafe_allow_html=True,
         )
     with col_m3:
+        tier_label = "High Agreement (≤ 2.0%)" if mae_val <= 2.0 else ("Acceptable (≤ 4.0%)" if mae_val <= 4.0 else "Review Needed")
+        tier_color = "#10b981" if mae_val <= 2.0 else ("#0284c7" if mae_val <= 4.0 else "#f59e0b")
         st.markdown(
             f"""
             <div class="metric-card-box">
-                <div class="metric-card-header">{get_txt('evaluated_batches')}</div>
-                <div class="metric-card-val" style="color: #0f172a;">{mae_info['sample_count']}</div>
-                <div class="metric-card-sub">Ground-Truth Calibrated Lots</div>
+                <div class="metric-card-header">Accuracy Benchmark</div>
+                <div class="metric-card-val" style="color: {tier_color}; font-size: 20px; line-height: 1.4;">{tier_label}</div>
+                <div class="metric-card-sub">Based on {mae_info['sample_count']} verified lots</div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -745,114 +836,133 @@ def render_mandi_tab():
 
     st.markdown("---")
 
-    history_df = db.get_batch_history()
-    if history_df.empty:
+    if comp_df.empty:
         st.info("No batches found in SQLite database yet. Perform a scan in Tab 1 first.")
     else:
+        st.markdown("#### 📝 Record Ground-Truth Actual Broken %")
         col_form1, col_form2 = st.columns([1, 1])
 
         with col_form1:
-            batch_options = [
-                f"Batch #{row['id']} — {row['variety']} ({row['timestamp']}) [Predicted Broken: {row['broken_pct']}%]"
-                for _, row in history_df.iterrows()
+            sample_options = [
+                f"{row['sample_id']} — {row['variety']} ({row['timestamp']}) [App: {row['app_broken_pct']}%]"
+                for _, row in comp_df.iterrows()
             ]
-            selected_batch_str = st.selectbox(
-                get_txt("select_batch_feedback"), options=batch_options
+            selected_sample_str = st.selectbox(
+                "Select Saved Sample to Update:", options=sample_options
             )
 
-            match = re.search(r"\d+", str(selected_batch_str))
-            if match is None:
-                st.warning("No valid batch selected.")
-                return
-
-            selected_batch_id = int(match.group())
-            selected_matches = history_df[history_df["id"] == selected_batch_id]
+            selected_sample_id = selected_sample_str.split(" — ")[0].strip()
+            selected_matches = comp_df[comp_df["sample_id"] == selected_sample_id]
             if selected_matches.empty:
-                st.warning("The selected batch could not be found.")
+                st.warning("The selected sample could not be found.")
                 return
             selected_row = selected_matches.iloc[0]
 
             existing_actual = (
-                float(selected_row["mandi_broken_actual"])
-                if "mandi_broken_actual" in selected_row.index
-                and pd.notnull(selected_row["mandi_broken_actual"])
-                else float(selected_row["broken_pct"])
-            )
-            existing_price = (
-                float(selected_row["mandi_price_offered"])
-                if "mandi_price_offered" in selected_row.index
-                and pd.notnull(selected_row["mandi_price_offered"])
-                else 3200.0
+                float(selected_row["actual_broken_pct"])
+                if pd.notnull(selected_row["actual_broken_pct"])
+                else float(selected_row["app_broken_pct"])
             )
             existing_notes = (
                 str(selected_row["notes"])
-                if "notes" in selected_row.index and pd.notnull(selected_row["notes"])
+                if pd.notnull(selected_row["notes"]) and selected_row["notes"] is not None
                 else ""
             )
 
             actual_broken = st.number_input(
-                get_txt("actual_broken_input"),
+                "Actual Broken Grain Percentage (Trader / Manual Count %):",
                 min_value=0.0,
                 max_value=100.0,
                 value=max(0.0, min(100.0, existing_actual)),
-                step=0.5,
-            )
-            price_offered = st.number_input(
-                get_txt("price_offered_input"),
-                min_value=500.0,
-                max_value=15000.0,
-                value=max(500.0, min(15000.0, existing_price)),
-                step=50.0,
+                step=0.1,
+                format="%.1f",
             )
             notes_text = st.text_input(
-                get_txt("feedback_notes"), value=existing_notes
+                "Inspection Notes (Lighting conditions, angle, camera distance, tray count):",
+                value=existing_notes,
+                placeholder="e.g. Diffuse morning sunlight, perpendicular 90 deg, manual tray count",
             )
 
-            if st.button(get_txt("submit_feedback_btn"), use_container_width=True):
-                db.update_mandi_feedback(
-                    batch_id=selected_batch_id,
-                    mandi_broken_actual=actual_broken,
-                    mandi_price_offered=price_offered,
+            if st.button("💾 Save Feedback & Recalculate MAE", use_container_width=True):
+                db.record_feedback(
+                    sample_id=selected_sample_id,
+                    actual_broken_pct=actual_broken,
                     notes=notes_text,
                 )
-                st.success(get_txt("feedback_success").format(selected_batch_id))
+                st.success(f"✅ Feedback saved for {selected_sample_id}! Updated MAE: ±{db.calculate_feedback_mae()['mae']:.2f}%")
                 st.rerun()
 
         with col_form2:
-            st.markdown(f"#### {get_txt('comparison_title')}")
-            pred_broken_val = float(selected_row["broken_pct"])
+            st.markdown("#### 🔍 Sample Accuracy Inspection")
+            pred_broken_val = float(selected_row["app_broken_pct"])
             diff_val = abs(pred_broken_val - actual_broken)
-            grade = selected_row.get("agmark_grade", "Not available")
-            variety = selected_row.get("variety", "Not available")
+            q_status = str(selected_row.get("capture_quality_status", "Passed"))
+            variety = str(selected_row.get("variety", "N/A"))
+
+            status_bg = "#dcfce7" if "pass" in q_status.lower() else ("#fef3c7" if "warn" in q_status.lower() else "#fee2e2")
+            status_fg = "#166534" if "pass" in q_status.lower() else ("#92400e" if "warn" in q_status.lower() else "#991b1b")
 
             st.markdown(
                 f"""
                 <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
-                    <p style="margin: 0 0 6px 0; font-size: 13px; color: #64748B;">
-                        <strong>Batch ID:</strong> #{selected_batch_id} | <strong>Variety:</strong> {variety}
-                    </p>
-                    <p style="margin: 0 0 6px 0; font-size: 13px; color: #64748B;">
-                        <strong>Assigned AGMARK Grade:</strong> {grade}
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <span style="font-size: 14px; font-weight: 700; color: #0f172a;">Sample: {selected_sample_id} ({variety})</span>
+                        <span style="background: {status_bg}; color: {status_fg}; padding: 3px 8px; border-radius: 9999px; font-size: 11px; font-weight: 700;">
+                            {q_status}
+                        </span>
+                    </div>
+                    <p style="margin: 0 0 10px 0; font-size: 12px; color: #64748b;">
+                        Recorded: {selected_row['timestamp']}
                     </p>
                     <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 10px 0;"/>
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                        <span>{get_txt('pred_broken')}:</span>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13px;">
+                        <span>App Estimated Broken:</span>
                         <span style="font-weight: 700; color: #0284c7;">{pred_broken_val:.1f}%</span>
                     </div>
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                        <span>{get_txt('actual_broken')}:</span>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13px;">
+                        <span>Actual Broken (Ground-Truth):</span>
                         <span style="font-weight: 700; color: #10b981;">{actual_broken:.1f}%</span>
                     </div>
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                        <span>{get_txt('pred_diff')}:</span>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13px;">
+                        <span>Absolute Error (|App - Actual|):</span>
                         <span style="font-weight: 800; color: {'#10b981' if diff_val <= 2.5 else '#f59e0b'};">
-                            {diff_val:.1f}% ({'High Accuracy' if diff_val <= 2.5 else 'Acceptable Tolerance'})
+                            {diff_val:.1f}% ({'High Agreement' if diff_val <= 2.5 else 'Acceptable Tolerance'})
                         </span>
+                    </div>
+                    <div style="margin-top: 8px; font-size: 11.5px; color: #64748b;">
+                        <em>Notes: {notes_text or 'No notes provided yet'}</em>
                     </div>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
+
+        st.markdown("---")
+        st.markdown("#### 📊 Ground-Truth vs Predicted Comparison Table")
+
+        # Display full comparison table
+        display_df = comp_df.rename(columns={
+            "sample_id": "Sample ID",
+            "timestamp": "Timestamp",
+            "variety": "Variety",
+            "app_broken_pct": "App Broken (%)",
+            "actual_broken_pct": "Actual Broken (%)",
+            "absolute_error": "Absolute Error (%)",
+            "capture_quality_status": "Capture Quality",
+            "notes": "Inspection Notes",
+        })
+        st.dataframe(display_df, use_container_width=True, height=280)
+
+        # CSV Export button
+        csv_mandi_buf = io.StringIO()
+        comp_df.to_csv(csv_mandi_buf, index=False)
+        st.download_button(
+            label="📥 Download Mandi Feedback Log (CSV)",
+            data=csv_mandi_buf.getvalue(),
+            file_name="mandi_feedback_log.csv",
+            mime="text/csv",
+            use_container_width=False,
+        )
 
 
 def render_history_tab():
@@ -1005,12 +1115,15 @@ def main():
             help=get_txt("target_length_help"),
         )
 
+        if variety_choice in ["Custom/Auto", "Auto-Detect"]:
+            st.caption("ℹ️ *Custom/Auto: Intact length estimated from 75th percentile of distribution.*")
+
         broken_cutoff_pct = st.slider(
             get_txt("broken_cutoff_label"),
-            min_value=50,
-            max_value=90,
+            min_value=60,
+            max_value=85,
             value=75,
-            step=5,
+            step=1,
             help=get_txt("broken_cutoff_help"),
         )
 
@@ -1116,6 +1229,9 @@ def main():
 
     annotated_grains, grains_list, stats, binary_mask = analyzer.analyze(unwarped_bgr, px_per_mm)
 
+    current_quality_status = "Passed" if quality_metrics.get("status") == "pass" else ("Warning" if quality_metrics.get("status") == "warn" else "Failed")
+    current_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
     # Auto-save batch to SQLite if not saved for this image
     if st.session_state.last_saved_batch_id is None and stats["total_grains"] > 0:
         new_id = db.save_batch(
@@ -1126,15 +1242,21 @@ def main():
             discoloured_pct=stats["discoloured_pct"],
             chalky_pct=stats["chalky_pct"],
             agmark_grade=stats["agmark_grade"],
+            capture_quality_status=current_quality_status,
             notes="Offline smartphone scan",
         )
         st.session_state.last_saved_batch_id = new_id
+
+    current_sample_id = f"SMP-{st.session_state.last_saved_batch_id or 1001:04d}"
 
     # 1. Full-width AGMARK Quality Result Banner
     render_agmark_banner(stats)
 
     # 2. Five Quality Metric Cards in one row
     render_metric_cards(stats, analyzer)
+
+    # Feature 5: On-screen summary report card
+    render_onscreen_summary_card(stats, current_quality_status, current_sample_id, current_timestamp)
 
     # 3. Seven Analysis Tabs below Metric Cards
     tab_cv, tab_morph, tab_data, tab_sheet, tab_standards, tab_mandi, tab_history = st.tabs([
@@ -1266,8 +1388,8 @@ def main():
                     f"""
                     <div class="metric-card-box">
                         <div class="metric-card-header">{get_txt('avg_length')}</div>
-                        <div class="metric-card-val" style="color: #0284c7;">{stats['avg_length_mm']} mm</div>
-                        <div class="metric-card-sub">Baseline: {stats['reference_length_mm']} mm</div>
+                        <div class="metric-card-val" style="color: #0284c7;">{stats['avg_length_mm']} ± {stats.get('length_std_mm', 0.0):.2f} mm</div>
+                        <div class="metric-card-sub">Baseline: {stats['reference_length_mm']} mm (Std: {stats.get('length_std_mm', 0.0):.2f} mm)</div>
                     </div>
                     """,
                     unsafe_allow_html=True,
@@ -1374,24 +1496,25 @@ def main():
             ])
             st.dataframe(df_grains, use_container_width=True, height=340)
 
-            col_e1, col_e2, col_e3 = st.columns(3)
+            col_e1, col_e2, col_e3, col_e4 = st.columns(4)
             with col_e1:
+                # Raw grain measurements CSV with exact required columns:
+                # grain_id, length_mm, width_mm, area_mm2, aspect_ratio, classification
                 csv_buf = io.StringIO()
                 df_all_export = pd.DataFrame([
                     {
-                        "Grain ID": g.grain_id,
-                        "Classification": g.classification,
-                        "Length (mm)": g.length_mm,
-                        "Width (mm)": g.width_mm,
-                        "Aspect Ratio": g.aspect_ratio,
-                        "Area (mm²)": g.area_mm2,
-                        "Chalky Ratio": g.chalky_ratio,
+                        "grain_id": g.grain_id,
+                        "length_mm": g.length_mm,
+                        "width_mm": g.width_mm,
+                        "area_mm2": g.area_mm2,
+                        "aspect_ratio": g.aspect_ratio,
+                        "classification": g.classification,
                     }
                     for g in grains_list
                 ])
                 df_all_export.to_csv(csv_buf, index=False)
                 st.download_button(
-                    label=get_txt("download_csv"),
+                    label="📊 Download CSV (Raw Data)",
                     data=csv_buf.getvalue(),
                     file_name=f"farmgate_grain_batch_{st.session_state.last_saved_batch_id or 'scan'}.csv",
                     mime="text/csv",
@@ -1399,25 +1522,60 @@ def main():
                 )
             with col_e2:
                 pdf_file = "farmgate_quality_certificate.pdf"
-                generate_pdf_report(stats, stats["variety"], output_pdf_path=pdf_file)
+                current_sample_id = f"SMP-{st.session_state.last_saved_batch_id or 1001:04d}"
+                current_quality_status = "Passed" if quality_metrics.get("status") == "pass" else ("Warning" if quality_metrics.get("status") == "warn" else "Failed")
+                temp_thumb = "temp_pdf_thumbnail.png"
+                cv2.imwrite(temp_thumb, cv2.resize(annotated_grains, (640, 480)))
+                generate_pdf_report(
+                    stats,
+                    stats["variety"],
+                    output_pdf_path=pdf_file,
+                    sample_id=current_sample_id,
+                    capture_quality_status=current_quality_status,
+                    annotated_image_path=temp_thumb,
+                )
                 with open(pdf_file, "rb") as f:
                     pdf_bytes = f.read()
                 st.download_button(
-                    label=get_txt("download_pdf"),
+                    label="📄 Download PDF Certificate",
                     data=pdf_bytes,
                     file_name=f"farmgate_certificate_batch_{st.session_state.last_saved_batch_id or 'scan'}.pdf",
                     mime="application/pdf",
                     use_container_width=True,
                 )
             with col_e3:
+                html_report_content = generate_html_report(
+                    stats,
+                    stats["variety"],
+                    sample_id=current_sample_id,
+                    capture_quality_status=current_quality_status,
+                )
+                st.download_button(
+                    label="🌐 Download HTML Report",
+                    data=html_report_content,
+                    file_name=f"farmgate_report_batch_{st.session_state.last_saved_batch_id or 'scan'}.html",
+                    mime="text/html",
+                    use_container_width=True,
+                )
+            with col_e4:
                 _, enc_img = cv2.imencode(".png", annotated_grains)
                 st.download_button(
-                    label=get_txt("download_img"),
+                    label="🖼️ Download Annotated Image",
                     data=enc_img.tobytes(),
                     file_name="farmgate_annotated_defects.png",
                     mime="image/png",
                     use_container_width=True,
                 )
+
+            # Feature 5: Mandatory Legal Disclaimer Callout
+            st.markdown(
+                f"""
+                <div style="background-color: #fef2f2; border: 1px solid #ef4444; border-radius: 8px; padding: 12px 16px; margin-top: 16px; color: #991b1b; font-size: 13px; font-weight: 600; text-align: center;">
+                    ⚠️ <strong>MANDATORY DISCLAIMER:</strong> {MANDATORY_DISCLAIMER}
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
     # =========================================================================
     # TAB 4: PRINTABLE CALIBRATION SHEET
