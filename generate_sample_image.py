@@ -9,6 +9,7 @@ import os
 import random
 import numpy as np
 import cv2
+from typing import Tuple
 from generate_sheet import generate_calibration_sheet, MARKER_SPAN_MM, ACTIVE_SIZE_MM
 
 
